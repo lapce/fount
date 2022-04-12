@@ -180,10 +180,7 @@ impl CollectionData {
                         }
                     } else {
                         let tag = crate::script_tags::script_tag(*script);
-                        let entry = fallback
-                            .script_fallbacks
-                            .entry(tag)
-                            .or_default();
+                        let entry = fallback.script_fallbacks.entry(tag).or_default();
                         if !entry.contains(&family_id) {
                             entry.push(family_id);
                         }
@@ -240,7 +237,7 @@ impl CollectionData {
 }
 
 pub(crate) fn scan_path(
-    path: &Path,
+    path: impl AsRef<Path>,
     scanner: &mut FontScanner,
     collection: &mut CollectionData,
     fallback: &mut FallbackData,

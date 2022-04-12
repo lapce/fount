@@ -1,13 +1,5 @@
 #![allow(dead_code, unused_variables)]
 
-#[cfg(target_os = "macos")]
-#[path = "platform/macos.rs"]
-mod platform;
-
-#[cfg(target_os = "windows")]
-#[path = "platform/windows.rs"]
-mod platform;
-
 mod context;
 mod data;
 mod font;
@@ -15,6 +7,7 @@ mod id;
 mod library;
 mod scan;
 mod script_tags;
+mod system;
 
 pub use context::FontContext;
 pub use data::SourcePaths;

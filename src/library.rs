@@ -1,5 +1,6 @@
 use super::data::*;
 use crate::scan::{scan_path, FontScanner};
+use crate::system::{Os, OS};
 use std::io;
 use std::path::Path;
 use std::sync::atomic::AtomicU64;
@@ -30,12 +31,12 @@ impl Library {
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl Default for Library {
     fn default() -> Self {
-        let system =
-            SystemCollectionData::Static(StaticCollection::new(&super::platform::STATIC_DATA));
-        Self::new(system)
+        LibraryBuilder::default()
+            .add_system_path()
+            .add_user_path()
+            .build()
     }
 }
 
@@ -54,16 +55,117 @@ pub struct LibraryBuilder {
 }
 
 impl LibraryBuilder {
-    pub fn add_system_path<T: AsRef<Path>>(&mut self, path: T) -> Result<(), io::Error> {
-        scan_path(
-            path.as_ref(),
-            &mut self.scanner,
-            &mut self.system,
-            &mut self.fallback,
-        )
+    pub fn add_system_path(mut self) -> Self {
+        match OS {
+            Os::Windows => {
+                if let Some(mut windir) = std::env::var_os("SYSTEMROOT") {
+                    windir.push("\\Fonts\\");
+                    scan_path(
+                        windir,
+                        &mut self.scanner,
+                        &mut self.system,
+                        &mut self.fallback,
+                    );
+                } else {
+                    scan_path(
+                        "C:\\Windows\\Fonts\\",
+                        &mut self.scanner,
+                        &mut self.system,
+                        &mut self.fallback,
+                    );
+                }
+            }
+            Os::MacOs => {
+                scan_path(
+                    "/System/Library/Fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+                scan_path(
+                    "/Library/Fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+            }
+            Os::Ios => {
+                scan_path(
+                    "/System/Library/Fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+                scan_path(
+                    "/Library/Fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+            }
+            Os::Android => {
+                scan_path(
+                    "/system/fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+            }
+            Os::Unix => {
+                scan_path(
+                    "/usr/share/fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+                scan_path(
+                    "/usr/local/share/fonts/",
+                    &mut self.scanner,
+                    &mut self.system,
+                    &mut self.fallback,
+                );
+            }
+            Os::Other => {}
+        }
+
+        self
     }
 
-    pub fn build(self) -> Library {
+    pub fn add_user_path(mut self) -> Self {
+        match OS {
+            Os::Windows => {}
+            Os::MacOs => {
+                if let Some(mut homedir) = std::env::var_os("HOME") {
+                    homedir.push("/Library/Fonts/");
+                    scan_path(
+                        &homedir,
+                        &mut self.scanner,
+                        &mut self.system,
+                        &mut self.fallback,
+                    );
+                }
+            }
+            Os::Ios => {}
+            Os::Android => {}
+            Os::Unix => {
+                if let Some(mut homedir) = std::env::var_os("HOME") {
+                    homedir.push("/.local/share/fonts/");
+                    scan_path(
+                        &homedir,
+                        &mut self.scanner,
+                        &mut self.system,
+                        &mut self.fallback,
+                    );
+                }
+            }
+            Os::Other => {}
+        }
+
+        self
+    }
+
+    pub fn build(mut self) -> Library {
+        self.system.setup_default_generic();
         let system = SystemCollectionData::Scanned(ScannedCollectionData {
             collection: self.system,
             fallback: self.fallback,

@@ -56,6 +56,7 @@ pub struct CollectionData {
     pub fonts: Vec<FontData>,
     pub sources: Vec<SourceData>,
     pub family_map: HashMap<Arc<str>, FamilyId>,
+    pub generic_families: [Vec<FamilyId>; GENERIC_FAMILY_COUNT],
 }
 
 impl CollectionData {
@@ -80,6 +81,81 @@ impl CollectionData {
 
     pub fn family_by_name(&self, name: &str) -> Option<FamilyEntry> {
         self.family(self.family_id(name)?)
+    }
+
+    pub fn generic_families(&self, family: GenericFamily) -> &[FamilyId] {
+        self.generic_families
+            .get(family as usize)
+            .map(|families| families.as_ref())
+            .unwrap_or(&[])
+    }
+
+    fn find_family(&self, families: &[&str]) -> Vec<FamilyId> {
+        let mut family_ids = Vec::new();
+        for family in families {
+            if let Some(id) = self.family_id(*family) {
+                family_ids.push(id)
+            }
+        }
+        family_ids
+    }
+
+    pub fn setup_default_generic(&mut self) {
+        use super::system::*;
+        use GenericFamily::*;
+        match OS {
+            Os::Windows => {
+                self.generic_families[SansSerif as usize] = self.find_family(&["arial"]);
+                self.generic_families[Serif as usize] = self.find_family(&["times new roman"]);
+                self.generic_families[Monospace as usize] = self.find_family(&["courier new"]);
+                self.generic_families[Cursive as usize] = self.find_family(&["comic sans ms"]);
+                self.generic_families[SystemUi as usize] = self.find_family(&["segoe ui"]);
+                self.generic_families[Emoji as usize] = self.find_family(&["segoe ui emoji"]);
+            }
+            Os::MacOs => {
+                self.generic_families[SansSerif as usize] = self.find_family(&["helvetica"]);
+                self.generic_families[Serif as usize] = self.find_family(&["times"]);
+                self.generic_families[Monospace as usize] = self.find_family(&["courier"]);
+                self.generic_families[Cursive as usize] = self.find_family(&["apple chancery"]);
+                self.generic_families[SystemUi as usize] = self.find_family(&["helvetica"]);
+                self.generic_families[Emoji as usize] = self.find_family(&["apple color emoji"]);
+            }
+            Os::Ios => {
+                self.generic_families[SansSerif as usize] = self.find_family(&["helvetica"]);
+                self.generic_families[Serif as usize] = self.find_family(&["times new roman"]);
+                self.generic_families[Monospace as usize] = self.find_family(&["courier"]);
+                self.generic_families[Cursive as usize] = self.find_family(&["snell roundhand"]);
+                self.generic_families[SystemUi as usize] =
+                    self.find_family(&["system font", "helvetica"]);
+                self.generic_families[Emoji as usize] = self.find_family(&["apple color emoji"]);
+            }
+            Os::Android => {
+                self.generic_families[SansSerif as usize] = self.find_family(&["roboto"]);
+                self.generic_families[Serif as usize] =
+                    self.find_family(&["noto serif", "droid serif"]);
+                self.generic_families[Monospace as usize] = self.find_family(&["droid sans mono"]);
+                self.generic_families[Cursive as usize] = self.find_family(&["dancing script"]);
+                self.generic_families[SystemUi as usize] = self.find_family(&["roboto"]);
+                self.generic_families[Emoji as usize] = self.find_family(&["noto color emoji"]);
+            }
+            Os::Unix | Os::Other => {
+                self.generic_families[SansSerif as usize] =
+                    self.find_family(&["liberation sans", "dejavu sans"]);
+                self.generic_families[Serif as usize] = self.find_family(&[
+                    "liberation serif",
+                    "dejavu serif",
+                    "noto serif",
+                    "times new roman",
+                ]);
+                self.generic_families[Monospace as usize] = self.find_family(&["dejavu sans mono"]);
+                self.generic_families[Cursive as usize] =
+                    self.find_family(&["liberation serif", "dejavu serif"]);
+                self.generic_families[SystemUi as usize] =
+                    self.find_family(&["liberation sans", "dejavu sans"]);
+                self.generic_families[Emoji as usize] =
+                    self.find_family(&["noto color emoji", "emoji one"]);
+            }
+        }
     }
 
     pub fn font(&self, id: FontId) -> Option<FontEntry> {
@@ -420,7 +496,7 @@ impl SystemCollectionData {
                 .get(family as usize)
                 .copied()
                 .unwrap_or(&[]),
-            Self::Scanned(data) => data.fallback.generic_families(family),
+            Self::Scanned(data) => data.collection.generic_families(family),
         }
     }
 
