@@ -19,9 +19,10 @@ impl FontData {
     /// Creates font data from the file at the specified path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         let path = path.as_ref();
-        let data = std::fs::read(path)?;
+        let file = std::fs::File::open(path)?;
+        let map = unsafe { memmap2::Mmap::map(&file)? };
         Ok(Self {
-            inner: Arc::new(FontDataInner::Memory(data)),
+            inner: Arc::new(FontDataInner::Mapped(map)),
         })
     }
 
@@ -60,12 +61,14 @@ impl AsRef<[u8]> for FontData {
 #[derive(Debug)]
 enum FontDataInner {
     Memory(Vec<u8>),
+    Mapped(memmap2::Mmap),
 }
 
 impl FontDataInner {
     pub fn data(&self) -> &[u8] {
         match self {
             Self::Memory(data) => data,
+            Self::Mapped(mmap) => &*mmap,
         }
     }
 }

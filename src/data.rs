@@ -2,6 +2,9 @@ use super::font::*;
 use super::id::*;
 use super::*;
 use std::collections::HashMap;
+use std::io;
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use swash::text::Script;
 use swash::{Attributes, CacheKey, Stretch, Style, Weight};
@@ -24,7 +27,7 @@ pub struct FontData {
 
 #[derive(Clone)]
 pub enum SourceDataKind {
-    Path(Arc<str>),
+    Path(Arc<PathBuf>),
     Data(super::font::FontData),
 }
 
@@ -38,6 +41,19 @@ pub enum SourceDataStatus {
 pub struct SourceData {
     pub kind: SourceDataKind,
     pub status: RwLock<SourceDataStatus>,
+}
+
+impl SourceData {
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+        let path = path
+            .as_ref()
+            .to_str()
+            .ok_or(io::Error::new(io::ErrorKind::NotFound, "not found"))?;
+        Ok(SourceData {
+            kind: SourceDataKind::Path(Arc::new(path.into())),
+            status: RwLock::new(SourceDataStatus::Vacant),
+        })
+    }
 }
 
 impl Clone for SourceData {
@@ -184,15 +200,12 @@ impl CollectionData {
     pub fn load(&self, id: SourceId) -> Option<super::font::FontData> {
         let index = id.to_usize();
         let source_data = self.sources.get(index)?;
-        let path: &str = match &source_data.kind {
+        let path: &Path = match &source_data.kind {
             SourceDataKind::Data(data) => return Some(data.clone()),
             SourceDataKind::Path(path) => &*path,
         };
-        let paths = SourcePaths {
-            inner: SourcePathsInner::Static(&[]),
-            pos: 0,
-        };
-        load_source(paths, path, &source_data.status)
+        let font = load_source(path, &source_data.status);
+        font
     }
 
     pub fn clone_into(&self, other: &mut Self) {
@@ -360,18 +373,13 @@ impl StaticCollection {
             pos: 0,
         };
         load_source(
-            paths,
-            self.data.sources.get(index)?.file_name,
+            &self.data.sources.get(index)?.file_name,
             self.sources.get(index)?,
         )
     }
 }
 
-fn load_source(
-    source_paths: SourcePaths,
-    path: &str,
-    status: &RwLock<SourceDataStatus>,
-) -> Option<super::font::FontData> {
+fn load_source(path: &Path, status: &RwLock<SourceDataStatus>) -> Option<super::font::FontData> {
     match &*status.read().unwrap() {
         SourceDataStatus::Present(data) => {
             if let Some(data) = data.upgrade() {
@@ -391,15 +399,9 @@ fn load_source(
         SourceDataStatus::Error => return None,
         _ => {}
     }
-    let mut pathbuf = String::default();
-    for base_path in source_paths {
-        pathbuf.clear();
-        pathbuf.push_str(base_path);
-        pathbuf.push_str(path);
-        if let Ok(data) = super::font::FontData::from_file(&pathbuf) {
-            *status = SourceDataStatus::Present(data.downgrade());
-            return Some(data);
-        }
+    if let Ok(data) = super::font::FontData::from_file(path) {
+        *status = SourceDataStatus::Present(data.downgrade());
+        return Some(data);
     }
     *status = SourceDataStatus::Error;
     None
@@ -467,7 +469,7 @@ impl SystemCollectionData {
                 let source = data.data.sources.get(id.to_usize())?;
                 Some(SourceEntry {
                     id,
-                    kind: SourceKind::FileName(source.file_name),
+                    kind: SourceKind::FileName(source.file_name.clone()),
                 })
             }
             Self::Scanned(data) => data.collection.source(id),
@@ -530,7 +532,7 @@ pub struct StaticFontData {
 }
 
 pub struct StaticSourceData {
-    pub file_name: &'static str,
+    pub file_name: PathBuf,
 }
 
 pub struct StaticScriptFallbacks {

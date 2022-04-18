@@ -25,7 +25,7 @@ pub struct FontScanner {
 }
 
 impl FontScanner {
-    pub fn scan(&mut self, data: &[u8], mut f: impl FnMut(&ScannedFont)) {
+    pub fn scan(&mut self, data: &[u8], source: &SourceData, mut f: impl FnMut(&ScannedFont)) {
         if let Some(font_data) = FontDataRef::new(data) {
             let len = font_data.len();
             for i in 0..len {
@@ -112,6 +112,7 @@ impl CollectionData {
         &mut self,
         scanner: &mut FontScanner,
         data: super::font::FontData,
+        source: SourceData,
         mut reg: Option<&mut Registration>,
         mut fallback: Option<&mut FallbackData>,
     ) -> Option<u32> {
@@ -119,7 +120,7 @@ impl CollectionData {
         let source_id = SourceId::alloc(self.sources.len(), is_user)?;
         let mut added_source = false;
         let mut count = 0;
-        scanner.scan(&*data, |font| {
+        scanner.scan(&*data, &source, |font| {
             let font_id = if let Some(font_id) = FontId::alloc(self.fonts.len(), is_user) {
                 font_id
             } else {
@@ -151,10 +152,11 @@ impl CollectionData {
                 }
             }
             if !added_source {
-                self.sources.push(SourceData {
-                    kind: SourceDataKind::Data(data.clone()),
-                    status: RwLock::new(SourceDataStatus::Vacant),
-                });
+                self.sources.push(source.clone());
+                // self.sources.push(SourceData {
+                //     kind: SourceDataKind::Data(data.clone()),
+                //     status: RwLock::new(SourceDataStatus::Vacant),
+                // });
                 added_source = true;
             }
             if stretch != Stretch::NORMAL {
@@ -245,7 +247,13 @@ pub(crate) fn scan_path(
     let path = std::fs::canonicalize(path)?;
     if path.is_file() {
         let data = crate::font::FontData::from_file(&path)?;
-        collection.add_fonts(scanner, data, None, Some(fallback));
+        collection.add_fonts(
+            scanner,
+            data,
+            SourceData::from_path(&path)?,
+            None,
+            Some(fallback),
+        );
     } else {
         for entry in fs::read_dir(&path)? {
             let entry = entry?;

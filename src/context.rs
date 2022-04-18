@@ -6,6 +6,7 @@ use super::*;
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::RwLock;
 use swash::text::Script;
 
 /// Interface to a font library providing enumeration, queries and fallbacks.
@@ -123,8 +124,13 @@ impl FontContext {
         let mut scanner = FontScanner::default();
         let mut collection = self.library.inner.user.write().unwrap();
         let mut reg = Registration::default();
+        let data = FontData::new(data);
+        let source = SourceData {
+            kind: SourceDataKind::Data(data.clone()),
+            status: RwLock::new(SourceDataStatus::Vacant),
+        };
         let count = collection
-            .add_fonts(&mut scanner, FontData::new(data), Some(&mut reg), None)
+            .add_fonts(&mut scanner, data, source, Some(&mut reg), None)
             .unwrap_or(0);
         if count != 0 {
             self.library

@@ -18,7 +18,7 @@ pub use library::{Library, LibraryBuilder};
 pub use swash::text::Language as Locale;
 
 use data::*;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use swash::{Attributes, CacheKey, Stretch, Style, Weight};
 
 use core::fmt;
@@ -373,9 +373,9 @@ impl SourceEntry {
 #[derive(Clone)]
 pub enum SourceKind {
     /// File name of the source. Pair with [`SourcePaths`] to locate the file.
-    FileName(&'static str),
+    FileName(PathBuf),
     /// Full path to a font file.
-    Path(Arc<str>),
+    Path(Arc<PathBuf>),
     /// Shared buffer containing font data.
     Data(FontData),
 }
