@@ -120,23 +120,15 @@ impl CollectionData {
         let tag = script_tags::script_tag(Script::Latin);
         let entry = fallback.script_fallbacks.entry(tag).or_default();
         use super::system::*;
-        match OS {
-            Os::Windows => {
-                *entry = self.find_family(&["segoe ui"]);
-            }
-            Os::MacOs => {
-                *entry = self.find_family(&["helvetica"]);
-            }
-            Os::Ios => {
-                *entry = self.find_family(&["roboto"]);
-            }
-            Os::Unix | Os::Other => {
-                *entry = self.find_family(&["liberation serif", "dejavu serif"]);
-            }
-            Os::Android => {
-                *entry = self.find_family(&["roboto"]);
-            }
-        }
+        let mut families = match OS {
+            Os::Windows => self.find_family(&["segoe ui"]),
+            Os::MacOs => self.find_family(&["helvetica"]),
+            Os::Ios => self.find_family(&["roboto"]),
+            Os::Unix | Os::Other => self.find_family(&["liberation serif", "dejavu serif"]),
+            Os::Android => self.find_family(&["roboto"]),
+        };
+        families.extend_from_slice(entry);
+        *entry = families;
     }
 
     pub fn setup_default_generic(&mut self) {
