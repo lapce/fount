@@ -116,6 +116,29 @@ impl CollectionData {
         family_ids
     }
 
+    pub fn setup_fallback(&mut self, fallback: &mut FallbackData) {
+        let tag = script_tags::script_tag(Script::Latin);
+        let entry = fallback.script_fallbacks.entry(tag).or_default();
+        use super::system::*;
+        match OS {
+            Os::Windows => {
+                *entry = self.find_family(&["segoe ui"]);
+            }
+            Os::MacOs => {
+                *entry = self.find_family(&["helvetica"]);
+            }
+            Os::Ios => {
+                *entry = self.find_family(&["roboto"]);
+            }
+            Os::Unix | Os::Other => {
+                *entry = self.find_family(&["liberation serif", "dejavu serif"]);
+            }
+            Os::Android => {
+                *entry = self.find_family(&["roboto"]);
+            }
+        }
+    }
+
     pub fn setup_default_generic(&mut self) {
         use super::system::*;
         use GenericFamily::*;

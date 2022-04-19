@@ -166,6 +166,7 @@ impl LibraryBuilder {
 
     pub fn build(mut self) -> Library {
         self.system.setup_default_generic();
+        self.system.setup_fallback(&mut self.fallback);
         let system = SystemCollectionData::Scanned(ScannedCollectionData {
             collection: self.system,
             fallback: self.fallback,
