@@ -7,4 +7,5 @@ edition = "2018"
 
 [dependencies]
 memmap2 = "0.5.3"
-swash = { git = "https://github.com/dfrg/swash" }
+swash = { git = "https://github.com/lapce/swash" }
+# swash = { path = "../swash" }
