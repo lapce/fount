@@ -91,7 +91,7 @@ impl FontScanner {
         }
         self.font
             .lowercase_name
-            .extend(self.font.name.chars().map(|ch| ch.to_lowercase()).flatten());
+            .extend(self.font.name.chars().flat_map(|ch| ch.to_lowercase()));
         self.font.attributes = font.attributes();
         self.font.cache_key = font.key;
         for ws in font.writing_systems() {
