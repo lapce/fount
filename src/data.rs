@@ -48,7 +48,7 @@ impl SourceData {
         let path = path
             .as_ref()
             .to_str()
-            .ok_or(io::Error::new(io::ErrorKind::NotFound, "not found"))?;
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "not found"))?;
         Ok(SourceData {
             kind: SourceDataKind::Path(Arc::new(path.into())),
             status: RwLock::new(SourceDataStatus::Vacant),
