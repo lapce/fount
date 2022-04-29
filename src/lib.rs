@@ -96,7 +96,7 @@ impl FamilyEntry {
     }
 
     /// Returns an iterator over the fonts that are members of the family.
-    pub fn fonts<'a>(&'a self) -> impl Iterator<Item = FontId> + Clone + 'a {
+    pub fn fonts(&'_ self) -> impl Iterator<Item = FontId> + Clone + '_ {
         self.fonts_with_attrs().map(|font| font.0)
     }
 
