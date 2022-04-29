@@ -129,20 +129,18 @@ impl CollectionData {
             let family_id =
                 if let Some(family_id) = self.family_map.get(font.lowercase_name.as_str()) {
                     *family_id
+                } else if let Some(family_id) = FamilyId::alloc(self.families.len(), is_user) {
+                    let family = FamilyData {
+                        name: font.name.as_str().into(),
+                        has_stretch: false,
+                        fonts: Vec::new(),
+                    };
+                    self.families.push(Arc::new(family));
+                    self.family_map
+                        .insert(font.lowercase_name.as_str().into(), family_id);
+                    family_id
                 } else {
-                    if let Some(family_id) = FamilyId::alloc(self.families.len(), is_user) {
-                        let family = FamilyData {
-                            name: font.name.as_str().into(),
-                            has_stretch: false,
-                            fonts: Vec::new(),
-                        };
-                        self.families.push(Arc::new(family));
-                        self.family_map
-                            .insert(font.lowercase_name.as_str().into(), family_id);
-                        family_id
-                    } else {
-                        return;
-                    }
+                    return;
                 };
             let family = Arc::make_mut(self.families.get_mut(family_id.to_usize()).unwrap());
             let (stretch, weight, style) = font.attributes.parts();
