@@ -96,7 +96,7 @@ impl FamilyEntry {
     }
 
     /// Returns an iterator over the fonts that are members of the family.
-    pub fn fonts<'a>(&'a self) -> impl Iterator<Item = FontId> + Clone + 'a {
+    pub fn fonts(&'_ self) -> impl Iterator<Item = FontId> + Clone + '_ {
         self.fonts_with_attrs().map(|font| font.0)
     }
 
@@ -195,7 +195,7 @@ impl FamilyEntry {
         if weight >= Weight(400) && weight <= Weight(500) {
             // weights greater than or equal to the target weight are checked
             // in ascending order until 500 is hit and checked
-            for font in self.fonts_with_attrs().filter(|f| {
+            if let Some(font) = self.fonts_with_attrs().find(|f| {
                 f.1 == matching_stretch
                     && f.3 == matching_style
                     && f.2 >= weight
@@ -205,10 +205,10 @@ impl FamilyEntry {
             }
             // followed by weights less than the target weight in descending
             // order
-            for font in self
+            if let Some(font) = self
                 .fonts_with_attrs()
                 .rev()
-                .filter(|f| f.1 == matching_stretch && f.3 == matching_style && f.2 < weight)
+                .find(|f| f.1 == matching_stretch && f.3 == matching_style && f.2 < weight)
             {
                 return Some(font.0);
             }
@@ -222,10 +222,10 @@ impl FamilyEntry {
         } else if weight < Weight(400) {
             // weights less than or equal to the desired weight are checked in
             // descending order
-            for font in self
+            if let Some(font) = self
                 .fonts_with_attrs()
                 .rev()
-                .filter(|f| f.1 == matching_stretch && f.3 == matching_style && f.2 <= weight)
+                .find(|f| f.1 == matching_stretch && f.3 == matching_style && f.2 <= weight)
             {
                 return Some(font.0);
             }
@@ -240,9 +240,9 @@ impl FamilyEntry {
         } else {
             // weights greater than or equal to the desired weight are checked
             // in ascending order
-            for font in self
+            if let Some(font) = self
                 .fonts_with_attrs()
-                .filter(|f| f.1 == matching_stretch && f.3 == matching_style && f.2 >= weight)
+                .find(|f| f.1 == matching_stretch && f.3 == matching_style && f.2 >= weight)
             {
                 return Some(font.0);
             }
