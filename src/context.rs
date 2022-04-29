@@ -60,7 +60,7 @@ impl FontContext {
     }
 
     /// Returns the font family entry for the specified name.
-    pub fn family_by_name<'a>(&'a self, name: &str) -> Option<FamilyEntry> {
+    pub fn family_by_name(&self, name: &str) -> Option<FamilyEntry> {
         self.sync_user();
         if let Some(family) = self.user.borrow().1.family_by_name(name) {
             Some(family)
