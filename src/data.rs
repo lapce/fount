@@ -79,11 +79,7 @@ impl CollectionData {
     pub fn family_id(&self, name: &str) -> Option<FamilyId> {
         let mut lowercase_buf = LowercaseString::new();
         let lowercase_name = lowercase_buf.get(name)?;
-        if let Some(family_id) = self.family_map.get(lowercase_name) {
-            Some(*family_id)
-        } else {
-            None
-        }
+        self.family_map.get(lowercase_name).copied()
     }
 
     pub fn family(&self, id: FamilyId) -> Option<FamilyEntry> {
