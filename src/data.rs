@@ -231,6 +231,7 @@ impl CollectionData {
                 },
                 Os::MacOs => match script {
                     Script::Latin => self.find_family(&["helvetica", "arial unicode ms"]),
+                    Script::Arabic => self.find_family(&["geeza pro"]),
                     Script::Hiragana => self.find_family(&[
                         "hiragino maru gothic pron w4",
                         "hiragino kaku gothic pron w3",
@@ -238,8 +239,10 @@ impl CollectionData {
                     _ => self.find_family(&["helvetica"]),
                 },
                 _ => match script {
-                    Script::Latin => self.find_family(&["liberation serif", "dejavu serif"]),
-                    _ => self.find_family(&["liberation serif", "dejavu serif"]),
+                    Script::Latin => {
+                        self.find_family(&["sans-serif", "liberation serif", "dejavu serif"])
+                    }
+                    _ => self.find_family(&["sans-serif", "liberation serif", "dejavu serif"]),
                 },
             };
             self.script_fallbacks
@@ -268,9 +271,7 @@ impl CollectionData {
         let families = match OS {
             Os::Windows => self.find_family(&["segoe ui"]),
             Os::MacOs => self.find_family(&["helvetica"]),
-            Os::Ios => self.find_family(&["roboto"]),
-            Os::Unix | Os::Other => self.find_family(&["liberation serif", "dejavu serif"]),
-            Os::Android => self.find_family(&["roboto"]),
+            _ => self.find_family(&["sans-serif", "liberation serif", "dejavu serif"]),
         };
         self.default_families = families;
     }
