@@ -9,3 +9,5 @@ edition = "2018"
 memmap2 = "0.5.3"
 swash = { git = "https://github.com/lapce/swash" }
 # swash = { path = "../swash" }
+font-kit = { git = "https://github.com/lapce/font-kit" }
+# font-kit = { path = "../font-kit" }

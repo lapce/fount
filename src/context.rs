@@ -35,9 +35,9 @@ impl FontContext {
 
     /// Returns an iterator over the file system paths where fonts in this
     /// context may be found.
-    pub fn source_paths(&self) -> SourcePaths {
-        self.library.inner.system.source_paths()
-    }
+    // pub fn source_paths(&self) -> SourcePaths {
+    //     self.library.inner.system.read().unwrap().source_paths()
+    // }
 
     /// Returns an iterator over the font families in the context.
     pub fn families(&self) -> Families {
@@ -55,18 +55,23 @@ impl FontContext {
             self.sync_user();
             self.user.borrow().1.family(id)
         } else {
-            self.library.inner.system.family(id)
+            self.library.inner.system.write().unwrap().family(id)
         }
     }
 
     /// Returns the font family entry for the specified name.
     pub fn family_by_name<'a>(&'a self, name: &str) -> Option<FamilyEntry> {
         self.sync_user();
-        if let Some(family) = self.user.borrow().1.family_by_name(name) {
-            Some(family)
-        } else {
-            self.library.inner.system.family_by_name(name)
-        }
+        // if let Some(family) = self.user.borrow().1.family_by_name(name) {
+        //     Some(family)
+        // } else {
+        self.library
+            .inner
+            .system
+            .write()
+            .unwrap()
+            .family_by_name(name)
+        // }
     }
 
     /// Returns the font entry for the specified identifier.
@@ -75,7 +80,7 @@ impl FontContext {
             self.sync_user();
             self.user.borrow().1.font(id)
         } else {
-            self.library.inner.system.font(id)
+            self.library.inner.system.read().unwrap().font(id)
         }
     }
 
@@ -85,7 +90,7 @@ impl FontContext {
             self.sync_user();
             self.user.borrow().1.source(id)
         } else {
-            self.library.inner.system.source(id)
+            self.library.inner.system.read().unwrap().source(id)
         }
     }
 
@@ -95,26 +100,39 @@ impl FontContext {
             self.sync_user();
             self.user.borrow().1.load(id)
         } else {
-            self.library.inner.system.load(id)
+            self.library.inner.system.read().unwrap().load(id)
         }
     }
 
     /// Returns an ordered sequence of font family identifers that represent
     /// the default font families.
-    pub fn default_families(&self) -> &[FamilyId] {
-        self.library.inner.system.default_families()
+    pub fn default_families(&self) -> Vec<FamilyId> {
+        let system = self.library.inner.system.read().unwrap();
+        system.default_families().to_vec()
     }
 
     /// Returns an ordered sequence of font family identifers that represent the
     /// specified generic font family.
-    pub fn generic_families(&self, family: GenericFamily) -> &[FamilyId] {
-        self.library.inner.system.generic_families(family)
+    pub fn generic_families(&self, family: GenericFamily) -> Vec<FamilyId> {
+        self.library
+            .inner
+            .system
+            .read()
+            .unwrap()
+            .generic_families(family)
+            .to_vec()
     }
 
     /// Returns an ordered sequence of font family identifers that represent the
     /// fallback chain for the specified script and locale.
-    pub fn fallback_families(&self, script: Script, locale: Option<Locale>) -> &[FamilyId] {
-        self.library.inner.system.fallback_families(script, locale)
+    pub fn fallback_families(&self, script: Script, locale: Option<Locale>) -> Vec<FamilyId> {
+        self.library
+            .inner
+            .system
+            .write()
+            .unwrap()
+            .fallback_families(script, locale)
+            .to_vec()
     }
 
     /// Registers the fonts contained in the specified data. Returns identifiers for
@@ -130,7 +148,7 @@ impl FontContext {
             status: RwLock::new(SourceDataStatus::Vacant),
         };
         let count = collection
-            .add_fonts(&mut scanner, data, source, Some(&mut reg), None)
+            .add_fonts(data, source, Some(&mut reg))
             .unwrap_or(0);
         if count != 0 {
             self.library

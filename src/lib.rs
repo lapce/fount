@@ -301,7 +301,13 @@ impl Iterator for Families {
             } else {
                 let pos = self.pos;
                 self.pos += 1;
-                return self.library.inner.system.family(FamilyId::new(pos as u32));
+                return self
+                    .library
+                    .inner
+                    .system
+                    .read()
+                    .unwrap()
+                    .family(FamilyId::new(pos as u32));
             }
         }
     }

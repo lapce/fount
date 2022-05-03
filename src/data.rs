@@ -1,11 +1,16 @@
+use crate::scan::scan_path;
+
 use super::font::*;
 use super::id::*;
 use super::*;
+use font_kit::handle::Handle;
+use font_kit::source::SystemSource;
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use swash::text::Cjk;
 use swash::text::Script;
 use swash::{Attributes, CacheKey, Stretch, Style, Weight};
 
@@ -65,22 +70,66 @@ impl Clone for SourceData {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct CollectionData {
+    pub system_source: Arc<SystemSource>,
     pub is_user: bool,
     pub families: Vec<Arc<FamilyData>>,
     pub fonts: Vec<FontData>,
     pub sources: Vec<SourceData>,
-    pub family_map: HashMap<Arc<str>, FamilyId>,
+    pub family_map: HashMap<Arc<str>, Option<FamilyId>>,
+    pub default_families: Vec<FamilyId>,
     pub generic_families: [Vec<FamilyId>; GENERIC_FAMILY_COUNT],
+    pub cjk_families: [Vec<FamilyId>; CJK_FAMILY_COUNT],
+    pub script_fallbacks: HashMap<[u8; 4], Vec<FamilyId>>,
+}
+
+impl Default for CollectionData {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CollectionData {
-    pub fn family_id(&self, name: &str) -> Option<FamilyId> {
+    pub fn new() -> Self {
+        Self {
+            system_source: Arc::new(SystemSource::new()),
+            is_user: false,
+            families: Vec::new(),
+            fonts: Vec::new(),
+            sources: Vec::new(),
+            family_map: HashMap::new(),
+            default_families: Vec::new(),
+            generic_families: Default::default(),
+            cjk_families: Default::default(),
+            script_fallbacks: HashMap::new(),
+        }
+    }
+
+    pub fn family_id(&mut self, name: &str) -> Option<FamilyId> {
         let mut lowercase_buf = LowercaseString::new();
         let lowercase_name = lowercase_buf.get(name)?;
+
+        if !self.family_map.contains_key(lowercase_name) {
+            if let Ok(handle) = self.system_source.select_family_by_name(name) {
+                for font in handle.fonts() {
+                    match font {
+                        Handle::Path { path, font_index } => {
+                            scan_path(path, self);
+                        }
+                        Handle::Memory {
+                            bytes: _,
+                            font_index: _,
+                        } => {}
+                    }
+                }
+            } else {
+                self.family_map.insert(name.into(), None);
+            }
+        }
+
         if let Some(family_id) = self.family_map.get(lowercase_name) {
-            Some(*family_id)
+            *family_id
         } else {
             None
         }
@@ -95,8 +144,9 @@ impl CollectionData {
         })
     }
 
-    pub fn family_by_name(&self, name: &str) -> Option<FamilyEntry> {
-        self.family(self.family_id(name)?)
+    pub fn family_by_name(&mut self, name: &str) -> Option<FamilyEntry> {
+        let family_id = self.family_id(name)?;
+        self.family(family_id)
     }
 
     pub fn generic_families(&self, family: GenericFamily) -> &[FamilyId] {
@@ -106,7 +156,104 @@ impl CollectionData {
             .unwrap_or(&[])
     }
 
-    fn find_family(&self, families: &[&str]) -> Vec<FamilyId> {
+    pub fn default_families(&self) -> &[FamilyId] {
+        &self.default_families
+    }
+
+    pub fn fallback_families(&mut self, script: Script, locale: Option<Locale>) -> &[FamilyId] {
+        use super::system::*;
+        if script == Script::Han {
+            let cjk = locale.map(|l| l.cjk()).unwrap_or(Cjk::None);
+            if self.cjk_families[cjk as usize].is_empty() {
+                let families = match OS {
+                    Os::Windows => match cjk {
+                        Cjk::Simplified => {
+                            self.find_family(&["microsoft yahei", "simsun", "simsun-extb"])
+                        }
+                        Cjk::Traditional => {
+                            self.find_family(&["microsoft jhenghei", "pmingliu", "pmingliu-extb"])
+                        }
+                        Cjk::None => {
+                            self.find_family(&["microsoft jhenghei", "pmingliu", "pmingliu-extb"])
+                        }
+                        Cjk::Japanese => self.find_family(&[
+                            "meiryo",
+                            "yu gothic",
+                            "microsoft yahei",
+                            "simsun",
+                            "simsun-extb",
+                        ]),
+                        Cjk::Korean => self.find_family(&[
+                            "malgun gothic",
+                            "gulim",
+                            "microsoft yahei",
+                            "simsun",
+                            "simsun-extb",
+                        ]),
+                    },
+                    Os::MacOs => match cjk {
+                        Cjk::Simplified => self.find_family(&["pingfang sc"]),
+                        Cjk::Traditional => self.find_family(&["pingfang sc"]),
+                        Cjk::None => self.find_family(&["pingfang sc"]),
+                        Cjk::Japanese => self.find_family(&[
+                            "hiragino maru gothic pron w4",
+                            "hiragino kaku gothic pron w3",
+                        ]),
+                        Cjk::Korean => self.find_family(&["apple sd gothic neo"]),
+                    },
+                    _ => match cjk {
+                        Cjk::Simplified => self.find_family(&["pingfang sc"]),
+                        Cjk::Traditional => self.find_family(&["pingfang sc"]),
+                        Cjk::None => self.find_family(&["pingfang sc"]),
+                        Cjk::Japanese => self.find_family(&["hiragino kaku gothic pron w3"]),
+                        Cjk::Korean => self.find_family(&["apple sd gothic neo"]),
+                    },
+                };
+                self.cjk_families[cjk as usize].extend_from_slice(&families);
+            }
+            return &self.cjk_families[cjk as usize];
+        }
+
+        let tag = super::script_tags::script_tag(script);
+        let entry = self.script_fallbacks.entry(tag).or_default();
+        if entry.is_empty() {
+            let families = match OS {
+                Os::Windows => match script {
+                    Script::Latin => self.find_family(&["segoe ui"]),
+                    Script::Hiragana => self.find_family(&[
+                        "meiryo",
+                        "yu gothic",
+                        "microsoft yahei",
+                        "simsun",
+                        "simsun-extb",
+                    ]),
+                    _ => self.find_family(&["liberation serif", "dejavu serif"]),
+                },
+                Os::MacOs => match script {
+                    Script::Latin => self.find_family(&["helvetica", "arial unicode ms"]),
+                    Script::Hiragana => self.find_family(&[
+                        "hiragino maru gothic pron w4",
+                        "hiragino kaku gothic pron w3",
+                    ]),
+                    _ => self.find_family(&["helvetica"]),
+                },
+                _ => match script {
+                    Script::Latin => self.find_family(&["liberation serif", "dejavu serif"]),
+                    _ => self.find_family(&["liberation serif", "dejavu serif"]),
+                },
+            };
+            self.script_fallbacks
+                .entry(tag)
+                .or_default()
+                .extend_from_slice(&families);
+        }
+        match self.script_fallbacks.get(&tag) {
+            Some(families) => families,
+            _ => &self.default_families,
+        }
+    }
+
+    fn find_family(&mut self, families: &[&str]) -> Vec<FamilyId> {
         let mut family_ids = Vec::new();
         for family in families {
             if let Some(id) = self.family_id(*family) {
@@ -116,19 +263,16 @@ impl CollectionData {
         family_ids
     }
 
-    pub fn setup_fallback(&mut self, fallback: &mut FallbackData) {
-        let tag = script_tags::script_tag(Script::Latin);
-        let entry = fallback.script_fallbacks.entry(tag).or_default();
+    pub fn setup_default(&mut self) {
         use super::system::*;
-        let mut families = match OS {
+        let families = match OS {
             Os::Windows => self.find_family(&["segoe ui"]),
             Os::MacOs => self.find_family(&["helvetica"]),
             Os::Ios => self.find_family(&["roboto"]),
             Os::Unix | Os::Other => self.find_family(&["liberation serif", "dejavu serif"]),
             Os::Android => self.find_family(&["roboto"]),
         };
-        families.extend_from_slice(entry);
-        *entry = families;
+        self.default_families = families;
     }
 
     pub fn setup_default_generic(&mut self) {
@@ -151,38 +295,13 @@ impl CollectionData {
                 self.generic_families[SystemUi as usize] = self.find_family(&["helvetica"]);
                 self.generic_families[Emoji as usize] = self.find_family(&["apple color emoji"]);
             }
-            Os::Ios => {
-                self.generic_families[SansSerif as usize] = self.find_family(&["helvetica"]);
-                self.generic_families[Serif as usize] = self.find_family(&["times new roman"]);
-                self.generic_families[Monospace as usize] = self.find_family(&["courier"]);
-                self.generic_families[Cursive as usize] = self.find_family(&["snell roundhand"]);
+            _ => {
+                self.generic_families[SansSerif as usize] = self.find_family(&["sans-serif"]);
+                self.generic_families[Serif as usize] = self.find_family(&["serif"]);
+                self.generic_families[Monospace as usize] = self.find_family(&["monospace"]);
+                self.generic_families[Cursive as usize] = self.find_family(&["cursive"]);
                 self.generic_families[SystemUi as usize] =
-                    self.find_family(&["system font", "helvetica"]);
-                self.generic_families[Emoji as usize] = self.find_family(&["apple color emoji"]);
-            }
-            Os::Android => {
-                self.generic_families[SansSerif as usize] = self.find_family(&["roboto"]);
-                self.generic_families[Serif as usize] =
-                    self.find_family(&["noto serif", "droid serif"]);
-                self.generic_families[Monospace as usize] = self.find_family(&["droid sans mono"]);
-                self.generic_families[Cursive as usize] = self.find_family(&["dancing script"]);
-                self.generic_families[SystemUi as usize] = self.find_family(&["roboto"]);
-                self.generic_families[Emoji as usize] = self.find_family(&["noto color emoji"]);
-            }
-            Os::Unix | Os::Other => {
-                self.generic_families[SansSerif as usize] =
-                    self.find_family(&["liberation sans", "dejavu sans"]);
-                self.generic_families[Serif as usize] = self.find_family(&[
-                    "liberation serif",
-                    "dejavu serif",
-                    "noto serif",
-                    "times new roman",
-                ]);
-                self.generic_families[Monospace as usize] = self.find_family(&["dejavu sans mono"]);
-                self.generic_families[Cursive as usize] =
-                    self.find_family(&["liberation serif", "dejavu serif"]);
-                self.generic_families[SystemUi as usize] =
-                    self.find_family(&["liberation sans", "dejavu sans"]);
+                    self.find_family(&["system-ui", "liberation sans", "dejavu sans"]);
                 self.generic_families[Emoji as usize] =
                     self.find_family(&["noto color emoji", "emoji one"]);
             }
@@ -237,86 +356,9 @@ impl CollectionData {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct FallbackData {
-    pub default_families: Vec<FamilyId>,
-    pub script_fallbacks: HashMap<[u8; 4], Vec<FamilyId>>,
-    pub generic_families: [Vec<FamilyId>; GENERIC_FAMILY_COUNT],
-    pub cjk_families: [Vec<FamilyId>; CJK_FAMILY_COUNT],
-}
-
-impl FallbackData {
-    pub fn default_families(&self) -> &[FamilyId] {
-        &self.default_families
-    }
-
-    pub fn generic_families(&self, family: GenericFamily) -> &[FamilyId] {
-        self.generic_families
-            .get(family as usize)
-            .map(|families| families.as_ref())
-            .unwrap_or(&[])
-    }
-
-    pub fn fallback_families(&self, script: Script, locale: Option<Locale>) -> &[FamilyId] {
-        if script == Script::Han {
-            let cjk = locale.map(|l| l.cjk() as usize).unwrap_or(0);
-            return &self.cjk_families[cjk];
-        }
-        let tag = super::script_tags::script_tag(script);
-        match self.script_fallbacks.get(&tag) {
-            Some(families) => &families,
-            _ => &self.default_families,
-        }
-    }
-
-    /// This method generates fallback data for a scanned collection from the precomputed
-    /// family names in a static collection.
-    pub fn fill_from_static(
-        &mut self,
-        collection: &CollectionData,
-        static_collection: &StaticCollectionData,
-    ) {
-        self.default_families.clear();
-        self.default_families.extend(
-            static_collection
-                .default_families
-                .iter()
-                .filter_map(|id| static_collection.family_name(*id))
-                .filter_map(|name| collection.family_id(name)),
-        );
-        for script_fallbacks in static_collection.script_fallbacks {
-            let families = script_fallbacks
-                .families
-                .iter()
-                .filter_map(|id| static_collection.family_name(*id))
-                .filter_map(|name| collection.family_id(name))
-                .collect::<Vec<_>>();
-            if !families.is_empty() {
-                self.script_fallbacks
-                    .insert(script_fallbacks.script, families);
-            }
-        }
-        for i in 0..GENERIC_FAMILY_COUNT {
-            self.generic_families[i] = static_collection.generic_families[i]
-                .iter()
-                .filter_map(|id| static_collection.family_name(*id))
-                .filter_map(|name| collection.family_id(name))
-                .collect::<Vec<_>>();
-        }
-        for i in 0..CJK_FAMILY_COUNT {
-            self.cjk_families[i] = static_collection.cjk_families[i]
-                .iter()
-                .filter_map(|id| static_collection.family_name(*id))
-                .filter_map(|name| collection.family_id(name))
-                .collect::<Vec<_>>();
-        }
-    }
-}
-
 #[derive(Default)]
 pub struct ScannedCollectionData {
     pub collection: CollectionData,
-    pub fallback: FallbackData,
 }
 
 pub struct StaticCollection {
@@ -455,8 +497,9 @@ impl SystemCollectionData {
         }
     }
 
-    pub fn family_by_name(&self, name: &str) -> Option<FamilyEntry> {
-        self.family(self.family_id(name)?)
+    pub fn family_by_name(&mut self, name: &str) -> Option<FamilyEntry> {
+        let family_id = self.family_id(name)?;
+        self.family(family_id)
     }
 
     pub fn font(&self, id: FontId) -> Option<FontEntry> {
@@ -501,7 +544,7 @@ impl SystemCollectionData {
     pub fn default_families(&self) -> &[FamilyId] {
         match self {
             Self::Static(data) => data.data.default_families,
-            Self::Scanned(data) => data.fallback.default_families(),
+            Self::Scanned(data) => data.collection.default_families(),
         }
     }
 
@@ -517,14 +560,14 @@ impl SystemCollectionData {
         }
     }
 
-    pub fn fallback_families(&self, script: Script, locale: Option<Locale>) -> &[FamilyId] {
+    pub fn fallback_families(&mut self, script: Script, locale: Option<Locale>) -> &[FamilyId] {
         match self {
             Self::Static(data) => data.fallback_families(script, locale),
-            Self::Scanned(data) => data.fallback.fallback_families(script, locale),
+            Self::Scanned(data) => data.collection.fallback_families(script, locale),
         }
     }
 
-    pub fn family_id(&self, name: &str) -> Option<FamilyId> {
+    pub fn family_id(&mut self, name: &str) -> Option<FamilyId> {
         match self {
             Self::Static(data) => data.family_id(name),
             Self::Scanned(data) => data.collection.family_id(name),
