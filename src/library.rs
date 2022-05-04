@@ -1,10 +1,9 @@
 use super::data::*;
-use crate::scan::{scan_path, FontScanner};
-use crate::system::{Os, OS};
-use std::io;
-use std::path::Path;
+use crate::scan::FontScanner;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// Indexed collection of fonts and associated metadata supporting queries and
 /// fallback.
@@ -23,8 +22,8 @@ impl Library {
         user.is_user = true;
         Self {
             inner: Arc::new(Inner {
-                system: Arc::new(RwLock::new(system)),
-                user: Arc::new(RwLock::new(user)),
+                system: Rc::new(RefCell::new(system)),
+                user: Rc::new(RefCell::new(user)),
                 user_version: Arc::new(AtomicU64::new(0)),
             }),
         }
@@ -38,8 +37,8 @@ impl Default for Library {
 }
 
 pub struct Inner {
-    pub system: Arc<RwLock<SystemCollectionData>>,
-    pub user: Arc<RwLock<CollectionData>>,
+    pub system: Rc<RefCell<SystemCollectionData>>,
+    pub user: Rc<RefCell<CollectionData>>,
     pub user_version: Arc<AtomicU64>,
 }
 

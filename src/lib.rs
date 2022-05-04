@@ -305,8 +305,7 @@ impl Iterator for Families {
                     .library
                     .inner
                     .system
-                    .read()
-                    .unwrap()
+                    .borrow()
                     .family(FamilyId::new(pos as u32));
             }
         }

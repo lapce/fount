@@ -522,6 +522,20 @@ impl SystemCollectionData {
         }
     }
 
+    pub fn add_fonts(
+        &mut self,
+        data: super::font::FontData,
+        source: SourceData,
+        mut reg: Option<&mut Registration>,
+    ) -> Option<u32> {
+        match self {
+            SystemCollectionData::Static(_) => None,
+            SystemCollectionData::Scanned(collection) => {
+                collection.collection.add_fonts(data, source, reg)
+            }
+        }
+    }
+
     pub fn source(&self, id: SourceId) -> Option<SourceEntry> {
         match self {
             Self::Static(data) => {
