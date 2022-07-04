@@ -271,7 +271,7 @@ impl CollectionData {
         let families = match OS {
             Os::Windows => self.find_family(&["segoe ui"]),
             Os::MacOs => self.find_family(&["helvetica"]),
-            _ => self.find_family(&["sans-serif", "liberation serif", "dejavu serif"]),
+            _ => self.find_family(&["Cantarell", "liberation serif", "dejavu serif"]),
         };
         self.default_families = families;
     }
@@ -302,7 +302,7 @@ impl CollectionData {
                 self.generic_families[Monospace as usize] = self.find_family(&["monospace"]);
                 self.generic_families[Cursive as usize] = self.find_family(&["cursive"]);
                 self.generic_families[SystemUi as usize] =
-                    self.find_family(&["system-ui", "liberation sans", "dejavu sans"]);
+                    self.find_family(&["system-ui", "Cantarell", "liberation sans", "dejavu sans"]);
                 self.generic_families[Emoji as usize] =
                     self.find_family(&["noto color emoji", "emoji one"]);
             }
