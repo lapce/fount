@@ -177,6 +177,22 @@ impl CollectionData {
                 }
                 reg.fonts.push(font_id);
             }
+
+            for (script, cjk) in &font.scripts {
+                if *script == Script::Han {
+                    let entry = &mut self.cjk_families[*cjk as usize];
+                    if !entry.contains(&family_id) {
+                        entry.push(family_id);
+                    }
+                } else {
+                    let tag = crate::script_tags::script_tag(*script);
+                    let entry = self.script_fallbacks.entry(tag).or_default();
+                    if !entry.contains(&family_id) {
+                        entry.push(family_id);
+                    }
+                }
+            }
+
             self.fonts.push(FontData {
                 family: family_id,
                 source: source_id,

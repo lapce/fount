@@ -202,11 +202,11 @@ impl CollectionData {
                         Cjk::Korean => self.find_family(&["apple sd gothic neo"]),
                     },
                     _ => match cjk {
-                        Cjk::Simplified => self.find_family(&["pingfang sc"]),
-                        Cjk::Traditional => self.find_family(&["pingfang sc"]),
-                        Cjk::None => self.find_family(&["pingfang sc"]),
-                        Cjk::Japanese => self.find_family(&["hiragino kaku gothic pron w3"]),
-                        Cjk::Korean => self.find_family(&["apple sd gothic neo"]),
+                        Cjk::Simplified => self.find_family(&["Noto Sans CJK SC"]),
+                        Cjk::Traditional => self.find_family(&["Noto Sans CJK TC"]),
+                        Cjk::None => self.find_family(&["Noto Sans CJK SC"]),
+                        Cjk::Japanese => self.find_family(&["Noto Sans CJK SC"]),
+                        Cjk::Korean => self.find_family(&["Noto Sans CJK KR"]),
                     },
                 };
                 self.cjk_families[cjk as usize].extend_from_slice(&families);
