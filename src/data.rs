@@ -161,97 +161,18 @@ impl CollectionData {
     }
 
     pub fn fallback_families(&mut self, script: Script, locale: Option<Locale>) -> &[FamilyId] {
-        use super::system::*;
         if script == Script::Han {
             let cjk = locale.map(|l| l.cjk()).unwrap_or(Cjk::None);
-            if self.cjk_families[cjk as usize].is_empty() {
-                let families = match OS {
-                    Os::Windows => match cjk {
-                        Cjk::Simplified => {
-                            self.find_family(&["microsoft yahei", "simsun", "simsun-extb"])
-                        }
-                        Cjk::Traditional => {
-                            self.find_family(&["microsoft jhenghei", "pmingliu", "pmingliu-extb"])
-                        }
-                        Cjk::None => {
-                            self.find_family(&["microsoft jhenghei", "pmingliu", "pmingliu-extb"])
-                        }
-                        Cjk::Japanese => self.find_family(&[
-                            "meiryo",
-                            "yu gothic",
-                            "microsoft yahei",
-                            "simsun",
-                            "simsun-extb",
-                        ]),
-                        Cjk::Korean => self.find_family(&[
-                            "malgun gothic",
-                            "gulim",
-                            "microsoft yahei",
-                            "simsun",
-                            "simsun-extb",
-                        ]),
-                    },
-                    Os::MacOs => match cjk {
-                        Cjk::Simplified => self.find_family(&["pingfang sc"]),
-                        Cjk::Traditional => self.find_family(&["pingfang sc"]),
-                        Cjk::None => self.find_family(&["pingfang sc"]),
-                        Cjk::Japanese => self.find_family(&[
-                            "hiragino maru gothic pron w4",
-                            "hiragino kaku gothic pron w3",
-                        ]),
-                        Cjk::Korean => self.find_family(&["apple sd gothic neo"]),
-                    },
-                    _ => match cjk {
-                        Cjk::Simplified => self.find_family(&["Noto Sans CJK SC"]),
-                        Cjk::Traditional => self.find_family(&["Noto Sans CJK TC"]),
-                        Cjk::None => self.find_family(&["Noto Sans CJK SC"]),
-                        Cjk::Japanese => self.find_family(&["Noto Sans CJK SC"]),
-                        Cjk::Korean => self.find_family(&["Noto Sans CJK KR"]),
-                    },
-                };
-                self.cjk_families[cjk as usize].extend_from_slice(&families);
-            }
             return &self.cjk_families[cjk as usize];
         }
 
         let tag = super::script_tags::script_tag(script);
         let entry = self.script_fallbacks.entry(tag).or_default();
-        if entry.is_empty() {
-            let families = match OS {
-                Os::Windows => match script {
-                    Script::Latin => self.find_family(&["segoe ui"]),
-                    Script::Hiragana => self.find_family(&[
-                        "meiryo",
-                        "yu gothic",
-                        "microsoft yahei",
-                        "simsun",
-                        "simsun-extb",
-                    ]),
-                    _ => self.find_family(&["liberation serif", "dejavu serif"]),
-                },
-                Os::MacOs => match script {
-                    Script::Latin => self.find_family(&["helvetica", "arial unicode ms"]),
-                    Script::Arabic => self.find_family(&["geeza pro"]),
-                    Script::Hiragana => self.find_family(&[
-                        "hiragino maru gothic pron w4",
-                        "hiragino kaku gothic pron w3",
-                    ]),
-                    _ => self.find_family(&["helvetica"]),
-                },
-                _ => match script {
-                    Script::Latin => {
-                        self.find_family(&["sans-serif", "liberation serif", "dejavu serif"])
-                    }
-                    _ => self.find_family(&["sans-serif", "liberation serif", "dejavu serif"]),
-                },
-            };
-            self.script_fallbacks
-                .entry(tag)
-                .or_default()
-                .extend_from_slice(&families);
-        }
         match self.script_fallbacks.get(&tag) {
-            Some(families) => families,
+            Some(families) => {
+                // println!("families for {script:?} {families:?}");
+                families
+            }
             _ => &self.default_families,
         }
     }
@@ -301,10 +222,54 @@ impl CollectionData {
                 self.generic_families[Serif as usize] = self.find_family(&["serif"]);
                 self.generic_families[Monospace as usize] = self.find_family(&["monospace"]);
                 self.generic_families[Cursive as usize] = self.find_family(&["cursive"]);
-                self.generic_families[SystemUi as usize] =
-                    self.find_family(&["system-ui", "Cantarell Regular", "liberation sans", "dejavu sans"]);
+                self.generic_families[SystemUi as usize] = self.find_family(&[
+                    "system-ui",
+                    "Cantarell Regular",
+                    "liberation sans",
+                    "dejavu sans",
+                ]);
                 self.generic_families[Emoji as usize] =
                     self.find_family(&["noto color emoji", "emoji one"]);
+            }
+        }
+    }
+
+    /// When we do find_family, these fonts will be added to fallbacks in scan_font
+    pub fn setup_fallbacks(&mut self) {
+        use super::system::*;
+        match OS {
+            Os::Windows => {
+                let _ = self.find_family(&[
+                    "microsoft yahei",
+                    "simsun",
+                    "simsun-extb",
+                    "meiryo",
+                    "yu gothic",
+                    "microsoft jhenghei",
+                    "pmingliu",
+                    "pmingliu-extb",
+                    "malgun gothic",
+                    "gulim",
+                ]);
+            }
+            Os::MacOs => {
+                let _ = self.find_family(&[
+                    "pingfang sc",
+                    "geeza pro",
+                    "hiragino maru gothic pron w4",
+                    "hiragino kaku gothic pron w3",
+                    "apple sd gothic neo",
+                    "Menlo",
+                    "STIXGeneral",
+                ]);
+            }
+            _ => {
+                let _ = self.find_family(&[
+                    "Noto Sans CJK SC",
+                    "Noto Sans CJK TC",
+                    "Noto Sans CJK JP",
+                    "Noto Sans CJK KR",
+                ]);
             }
         }
     }

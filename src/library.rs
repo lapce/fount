@@ -53,6 +53,7 @@ impl LibraryBuilder {
     pub fn build(mut self) -> Library {
         self.system.setup_default();
         self.system.setup_default_generic();
+        self.system.setup_fallbacks();
         let system = SystemCollectionData::Scanned(ScannedCollectionData {
             collection: self.system,
         });
