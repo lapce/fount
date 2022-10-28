@@ -7,9 +7,9 @@ use swash::text::{Codepoint as _, Script};
 use swash::{Attributes, CacheKey, FontRef};
 
 fn main() {
-    let mut builder = LibraryBuilder::default();
-    builder.add_system_path("/usr/share/fonts").unwrap();
-    let library = builder.build();
+    //let mut builder = LibraryBuilder::default();
+    //builder.add_system_path("/usr/share/fonts").unwrap();
+    let library = Library::default();
     let fcx = FontContext::new(&library);
     let mut cache = FontCache::default();
     let text = std::env::args_os()

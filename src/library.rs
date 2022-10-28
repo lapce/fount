@@ -39,6 +39,34 @@ impl Default for Library {
     }
 }
 
+#[cfg(target_os = "linux")]
+impl Default for Library {
+    fn default() -> Self {
+        use std::ffi::OsStr;
+        use std::os::unix::prelude::OsStrExt;
+
+        // Find a newline-separated list of all font files that fc-list knows about.
+        // It would be nice to have a nul-separated list (because 100% the filenames don't
+        // have embedded nuls) but fc-list doesn't like it.
+        let cmd = std::process::Command::new("fc-list")
+            .arg("--format=%{file}\n")
+            .output()
+            .expect("failed to execute fc-list");
+        if !cmd.status.success() {
+            panic!("fc-list failed");
+        }
+        let mut builder = LibraryBuilder::default();
+        for filename in cmd.stdout.split(|&b| b == b'\n') {
+            if !filename.is_empty() {
+                builder
+                    .add_system_path(OsStr::from_bytes(filename))
+                    .expect("add_system_path failed");
+            }
+        }
+        builder.build()
+    }
+}
+
 pub struct Inner {
     pub system: SystemCollectionData,
     pub user: Arc<RwLock<CollectionData>>,
