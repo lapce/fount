@@ -3,16 +3,15 @@ use super::font::FontData;
 use super::id::*;
 use super::library::*;
 use super::*;
-use std::cell::RefCell;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use swash::text::Script;
 
 /// Interface to a font library providing enumeration, queries and fallbacks.
 #[derive(Clone)]
 pub struct FontContext {
     library: Library,
-    user: RefCell<Arc<(u64, CollectionData)>>,
+    user: Arc<RwLock<Arc<(u64, CollectionData)>>>,
 }
 
 impl FontContext {
@@ -20,7 +19,7 @@ impl FontContext {
     pub fn new(library: &Library) -> Self {
         let library_user = library.inner.user.read().unwrap();
         let user_version = library.inner.user_version.load(Ordering::Relaxed);
-        let user = RefCell::new(Arc::new((user_version, library_user.clone())));
+        let user = Arc::new(RwLock::new(Arc::new((user_version, library_user.clone()))));
         Self {
             library: library.clone(),
             user,
@@ -41,7 +40,7 @@ impl FontContext {
     /// Returns an iterator over the font families in the context.
     pub fn families(&self) -> Families {
         Families {
-            user: self.user.borrow().clone(),
+            user: self.user.read().unwrap().clone(),
             library: self.library.clone(),
             pos: 0,
             stage: 0,
@@ -52,7 +51,7 @@ impl FontContext {
     pub fn family(&self, id: FamilyId) -> Option<FamilyEntry> {
         if id.is_user_font() {
             self.sync_user();
-            self.user.borrow().1.family(id)
+            self.user.read().unwrap().1.family(id)
         } else {
             self.library.inner.system.family(id)
         }
@@ -61,7 +60,7 @@ impl FontContext {
     /// Returns the font family entry for the specified name.
     pub fn family_by_name<'a>(&'a self, name: &str) -> Option<FamilyEntry> {
         self.sync_user();
-        if let Some(family) = self.user.borrow().1.family_by_name(name) {
+        if let Some(family) = self.user.read().unwrap().1.family_by_name(name) {
             Some(family)
         } else {
             self.library.inner.system.family_by_name(name)
@@ -72,7 +71,7 @@ impl FontContext {
     pub fn font(&self, id: FontId) -> Option<FontEntry> {
         if id.is_user_font() {
             self.sync_user();
-            self.user.borrow().1.font(id)
+            self.user.read().unwrap().1.font(id)
         } else {
             self.library.inner.system.font(id)
         }
@@ -82,7 +81,7 @@ impl FontContext {
     pub fn source(&self, id: SourceId) -> Option<SourceEntry> {
         if id.is_user_font() {
             self.sync_user();
-            self.user.borrow().1.source(id)
+            self.user.read().unwrap().1.source(id)
         } else {
             self.library.inner.system.source(id)
         }
@@ -92,7 +91,7 @@ impl FontContext {
     pub fn load(&self, id: SourceId) -> Option<FontData> {
         if id.is_user_font() {
             self.sync_user();
-            self.user.borrow().1.load(id)
+            self.user.read().unwrap().1.load(id)
         } else {
             self.library.inner.system.load(id)
         }
@@ -139,13 +138,13 @@ impl FontContext {
 
     fn sync_user(&self) {
         let user_version = self.library.inner.user_version.load(Ordering::Relaxed);
-        if self.user.borrow().0 != user_version {
-            let mut arc_user = self.user.borrow().clone();
+        if self.user.read().unwrap().0 != user_version {
+            let mut arc_user = self.user.read().unwrap().clone();
             let mut user = Arc::make_mut(&mut arc_user);
             let library_user = self.library.inner.user.read().unwrap();
             library_user.clone_into(&mut user.1);
             user.0 = self.library.inner.user_version.load(Ordering::Relaxed);
-            *self.user.borrow_mut() = arc_user;
+            *self.user.write().unwrap() = arc_user;
         }
     }
 }
