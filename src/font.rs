@@ -1,34 +1,35 @@
 use std::path::Path;
-use std::sync::{Arc, Weak};
+
+use peniko::{Blob, WeakBlob};
 
 /// Shared reference to owned font data.
 #[derive(Clone, Debug)]
 #[repr(transparent)]
 pub struct FontData {
-    inner: Arc<FontDataInner>,
+    inner: Blob<u8>,
 }
 
 impl FontData {
     /// Creates font data from the specified bytes.
     pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            inner: Arc::new(FontDataInner::Memory(data)),
-        }
+        Self { inner: data.into() }
+    }
+
+    pub fn data(&self) -> Blob<u8> {
+        self.inner.clone()
     }
 
     /// Creates font data from the file at the specified path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         let path = path.as_ref();
         let data = std::fs::read(path)?;
-        Ok(Self {
-            inner: Arc::new(FontDataInner::Memory(data)),
-        })
+        Ok(Self { inner: data.into() })
     }
 
     /// Creates a new weak reference to the data.
     pub fn downgrade(&self) -> WeakFontData {
         WeakFontData {
-            inner: Arc::downgrade(&self.inner),
+            inner: self.inner.downgrade(),
         }
     }
 
@@ -36,24 +37,19 @@ impl FontData {
     pub fn as_bytes(&self) -> &[u8] {
         self.inner.data()
     }
-
-    /// Returns the number of strong references to the data.
-    pub fn strong_count(&self) -> usize {
-        Arc::strong_count(&self.inner)
-    }
 }
 
 impl std::ops::Deref for FontData {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        self.inner.data()
+        self.as_bytes()
     }
 }
 
 impl AsRef<[u8]> for FontData {
     fn as_ref(&self) -> &[u8] {
-        self.inner.data()
+        self.as_bytes()
     }
 }
 
@@ -71,10 +67,10 @@ impl FontDataInner {
 }
 
 /// Weak reference to owned font data.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[repr(transparent)]
 pub struct WeakFontData {
-    inner: Weak<FontDataInner>,
+    inner: WeakBlob<u8>,
 }
 
 impl WeakFontData {
